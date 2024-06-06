@@ -259,7 +259,6 @@ class OIDCAuthBackend(BaseAuthBackend):
         and configured to do so. Returns nothing if multiple users are matched."""
 
         user_info = self.get_userinfo(access_token, id_token, payload)
-
         claims_verified = self.verify_claims(user_info)
         if not claims_verified:
             msg = "Claims verification failed"
@@ -272,32 +271,34 @@ class OIDCAuthBackend(BaseAuthBackend):
                            _("Error: Email missing from keycloak roles"), )
             return None
 
+        pk_property = self.get_settings("OIDC_USER_PK_PROPERTY", "sub")
         try:
-            pk = user_info["sub"]
+            pk = user_info[pk_property]
         except KeyError:
             messages.error(self.request,
-                           _("Error: sub missing from keycloak roles"), )
+                           _("Error: id_property missing from keycloak roles"), )
             return None
 
+        name_property = self.get_settings("OIDC_USERNAME_PROPERTY", "sub")
         try:
-            username = user_info["preferred_username"]
+            username = user_info[name_property]
         except KeyError:
             username = user_info["email"]
 
-        new_roles = set(user_info['roles']) if user_info['roles'] else set()
-        if 'si-gestor-eventos-admin' in new_roles:
-            is_staff = True
-            new_roles.remove('si-gestor-eventos-admin')
-        else:
-            is_staff = False
-
+        new_roles = set(user_info.get('roles', []))
+        #if 'si-gestor-eventos-admin' in new_roles:
+        #    is_staff = True
+        #    new_roles.remove('si-gestor-eventos-admin')
+        #else:
+        #    is_staff = False
+        email = username + "@unibw.de"
         try:
             u = User.objects.get_or_create_for_backend(
                 "keycloak_auth",
                 pk,
                 email,
                 set_always={
-                    'is_staff': is_staff,
+                    #'is_staff': is_staff,
                     'fullname': username,
                 },
                 set_on_creation={},
@@ -312,6 +313,7 @@ class OIDCAuthBackend(BaseAuthBackend):
             )
             return None
 
+        return u
         # api_team = self.get_settings("UP_EVENT_MANAGER_API_TEAM", "API Token - Gestor Eventos UP")
         # managing_unit_team = self.get_settings("UP_EVENT_MANAGER_MANAGING_UNIT_TEAM", "Managing Unit")
 
